@@ -6,13 +6,14 @@ import adsk.cam
 import adsk.core
 import adsk.fusion
 
-PANEL = "SketchCreatePanel"
+COMMAND_PANEL = "SketchCreatePanel"
 
-SPIRAL_BUTTON_ID = "logarithmicspiralbutton"
+COMMAND_BUTTON_ID = "spiralbutton"
 
-POLAR_SLOPE_INPUT_ID = "polarslope"
-SCALE_INPUT_ID = "scale"
-RADIUS_INPUT_ID = "radius"
+INITIAL_DISTANCE_INPUT_ID = "initialdistance"
+INITIAL_ANGLE_INPUT_ID = "initialangle"
+FINAL_DISTANCE_INPUT_ID = "finaldistance"
+FINAL_ANGLE_INPUT_ID = "finalangle"
 NUM_POINTS_INPUT_ID = "numpoints"
 
 # Global list to keep all event handlers in scope.
@@ -27,34 +28,35 @@ class SpiralCommandCreatedEventHandler(adsk.core.CommandCreatedEventHandler):
         cmd = eventArgs.command
         inputs = cmd.commandInputs
 
-        app = adsk.core.Application.get()
-        des = adsk.fusion.Design.cast(app.activeProduct)
-
-        inputs.addAngleValueCommandInput(
-            id=POLAR_SLOPE_INPUT_ID,
-            name='Polar Slope',
-            initialValue=adsk.core.ValueInput.createByString('10 degree'),
+        initialDistanceInput = inputs.addDistanceValueCommandInput(
+            id=INITIAL_DISTANCE_INPUT_ID,
+            name='Initial Distance',
+            initialValue=adsk.core.ValueInput.createByString('1'),
         )
 
-        inputs.addFloatSpinnerCommandInput(
-            id=SCALE_INPUT_ID,
-            name='Scale',
-            unitType=des.unitsManager.defaultLengthUnits,
-            min=0,
-            max=sys.float_info.max,
-            spinStep=1,
-            initialValue=1,
+        initialAngleInput = inputs.addAngleValueCommandInput(
+            id=INITIAL_ANGLE_INPUT_ID,
+            name='Initial Angle',
+            initialValue=adsk.core.ValueInput.createByString('0 degree'),
         )
 
-        inputs.addFloatSpinnerCommandInput(
-            id=RADIUS_INPUT_ID,
-            name='Radius',
-            unitType=des.unitsManager.defaultLengthUnits,
-            min=0,
-            max=sys.float_info.max,
-            spinStep=1,
-            initialValue=100.0,
+        finalDistanceInput = inputs.addDistanceValueCommandInput(
+            id=FINAL_DISTANCE_INPUT_ID,
+            name='Final Distance',
+            initialValue=adsk.core.ValueInput.createByString('2'),
         )
+
+        finalDistanceInput.setManipulator(
+            adsk.core.Point3D.create(0, 0, 0),
+            adsk.core.Vector3D.create(-1, 0, 0),
+        )
+
+        finalAngleInput = inputs.addAngleValueCommandInput(
+            id=FINAL_ANGLE_INPUT_ID,
+            name='Final Angle',
+            initialValue=adsk.core.ValueInput.createByString('180 degree'),
+        )
+        finalAngleInput.hasMaximumValue = False
 
         inputs.addIntegerSpinnerCommandInput(
             id=NUM_POINTS_INPUT_ID,
@@ -69,9 +71,9 @@ class SpiralCommandCreatedEventHandler(adsk.core.CommandCreatedEventHandler):
         cmd.validateInputs.add(onValidate)
         handlers.append(onValidate)
 
-        onExecute = SpiralCommandExecuteHandler()
-        cmd.execute.add(onExecute)
-        handlers.append(onExecute)
+        onExecutePreview = SpiralCommandExecutePreviewHandler()
+        cmd.executePreview.add(onExecutePreview)
+        handlers.append(onExecutePreview)
 
 
 # Event handler for the validateInputs event.
@@ -80,17 +82,18 @@ class SpiralCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
         eventArgs = adsk.core.ValidateInputsEventArgs.cast(args)
         inputs = eventArgs.inputs
 
-        polarSlope = inputs.itemById(POLAR_SLOPE_INPUT_ID).value
-        scale = inputs.itemById(SCALE_INPUT_ID).value
-        radius = inputs.itemById(RADIUS_INPUT_ID).value
+        initialDistance = inputs.itemById(INITIAL_DISTANCE_INPUT_ID).value
+        initialAngle = inputs.itemById(INITIAL_ANGLE_INPUT_ID).value
+        finalDistance = inputs.itemById(FINAL_DISTANCE_INPUT_ID).value
+        finalAngle = inputs.itemById(FINAL_ANGLE_INPUT_ID).value
         num_points = inputs.itemById(NUM_POINTS_INPUT_ID).value
 
-        if scale <= 0 or radius <= 0 or num_points <= 0 or polarSlope == 0:
+        if num_points <= 0 or (finalDistance == initialDistance and finalAngle == initialAngle):
             eventArgs.areInputsValid = False
 
 
-# Event handler for the execute event.
-class SpiralCommandExecuteHandler(adsk.core.CommandEventHandler):
+# Event handler for the executePreview event.
+class SpiralCommandExecutePreviewHandler(adsk.core.CommandEventHandler):
     def notify(self, args):
         # Verify that a sketch is active.
         app = adsk.core.Application.get()
@@ -102,26 +105,29 @@ class SpiralCommandExecuteHandler(adsk.core.CommandEventHandler):
         eventArgs = adsk.core.CommandEventArgs.cast(args)
         inputs = eventArgs.command.commandInputs
 
-        polarSlope = inputs.itemById(POLAR_SLOPE_INPUT_ID).value
-        radius = inputs.itemById(RADIUS_INPUT_ID).value
+        initialDistance = inputs.itemById(INITIAL_DISTANCE_INPUT_ID).value
+        initialAngle = inputs.itemById(INITIAL_ANGLE_INPUT_ID).value
+        finalDistance = inputs.itemById(FINAL_DISTANCE_INPUT_ID).value
+        finalAngle = inputs.itemById(FINAL_ANGLE_INPUT_ID).value
         num_points = inputs.itemById(NUM_POINTS_INPUT_ID).value
 
-        a = 2
-        k = math.tan(polarSlope)
-        max_angle = math.log(radius, math.e**k)
+        k = math.log((finalDistance / initialDistance)**(1 / finalAngle))
 
         points = adsk.core.ObjectCollection.create()
-        # points.add(adsk.core.Point3D.create(0, 0, 0))
 
         for point in range(num_points + 1):
-            angle = (point * max_angle) / num_points
-            r = a * math.e**(k * angle)
-            x = r * math.cos(angle)
-            y = r * math.sin(angle)
+            angle = (point * (finalAngle - initialAngle)) / num_points
+            r = initialDistance * math.e**(k * angle)
+            x = r * math.cos(angle + initialAngle)
+            y = r * math.sin(angle + initialAngle)
             points.add(adsk.core.Point3D.create(x, y, 0))
 
         sketch = adsk.fusion.Sketch.cast(app.activeEditObject)
         sketch.sketchCurves.sketchFittedSplines.add(points)
+
+        # Set the isValidResult property to use these results at the final result.
+        # This will result in the execute event not being fired.
+        eventArgs.isValidResult = True
 
 
 def run(context):
@@ -132,7 +138,7 @@ def run(context):
         ui = app.userInterface
 
         button = ui.commandDefinitions.addButtonDefinition(
-            SPIRAL_BUTTON_ID,
+            COMMAND_BUTTON_ID,
             'Logarithmic Spiral',
             'Create a logarithmic spiral as a sketch curve.',
             '.\\Resources\\Logo',
@@ -142,7 +148,7 @@ def run(context):
         button.commandCreated.add(spiralCommandCreated)
         handlers.append(spiralCommandCreated)
 
-        addInsPanel = ui.allToolbarPanels.itemById(PANEL)
+        addInsPanel = ui.allToolbarPanels.itemById(COMMAND_PANEL)
         addInsPanel.controls.addCommand(button)
     except:
         if ui:
@@ -156,12 +162,12 @@ def stop(context):
         app = adsk.core.Application.get()
         ui = app.userInterface
 
-        cmdDef = ui.commandDefinitions.itemById(SPIRAL_BUTTON_ID)
+        cmdDef = ui.commandDefinitions.itemById(COMMAND_BUTTON_ID)
         if cmdDef:
             cmdDef.deleteMe()
 
-        addinsPanel = ui.allToolbarPanels.itemById(PANEL)
-        cntrl = addinsPanel.controls.itemById(SPIRAL_BUTTON_ID)
+        addinsPanel = ui.allToolbarPanels.itemById(COMMAND_PANEL)
+        cntrl = addinsPanel.controls.itemById(COMMAND_BUTTON_ID)
         if cntrl:
             cntrl.deleteMe()
 
