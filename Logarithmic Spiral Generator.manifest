@@ -1,0 +1,13 @@
+{
+	"autodeskProduct":	"Fusion360",
+	"type":	"addin",
+	"id":	"e97d8d3b-6bf2-4194-ab72-9338f97c294b",
+	"author":	"Lorenzo Murarotto",
+	"description":	{
+		"":	"Generate a logarithmic spiral in a sketch."
+	},
+	"version":	"0.1",
+	"runOnStartup":	true,
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}

@@ -1,0 +1,11 @@
+{
+	"python.autoComplete.extraPaths": [
+		"C:/Users/lnzmr/AppData/Roaming/Autodesk/Autodesk Fusion 360/API/Python/defs"
+	],
+	"python.pythonPath": "C:/Users/lnzmr/AppData/Local/Autodesk/webdeploy/production/a95f8c5ccd1169cf841c8219266ac15fc1536633/Python/python.exe",
+	"python.linting.pylintEnabled": false,
+	"python.analysis.extraPaths": [
+		"C:/Users/lnzmr/AppData/Roaming/Autodesk/Autodesk Fusion 360/API/Python/defs"
+	],
+	"python.formatting.provider": "yapf"
+}
